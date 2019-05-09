@@ -1,0 +1,197 @@
+---
+title: 'Proposal: A concave pairwise fusion approach to subgroup analysis with the
+  case $p>>n$'
+author: "Xiaoqing Ye"
+date: "2019/2/27"
+
+<link href="theme.css" rel="stylesheet"></link>
+
+## 1 Abstract
+An important step to precision medicine is to identify homogeneous population from the heterogeneous population to allow specific treatment for each homogeneous subgroup. This paper considers the population where every sample is affected by the same certain observed covariates with heterogeneity, which means that heterogeneity arises from the unobserved latent factors. On the basis of the study of Professor Huang, this paper discusses mainly the situation of $p \gg n$. Firstly, we establish a linear model with subject-specific interprets. We then propose to apply MCP to this linear regression for estimating parameters which automatically divides the heterogeneous population into subgroups. Futhermore, in order to implement the procedure of estimating, this paper develops the ADMM algorithm with minimax concave penalty (MCP, Zhang, 2010) for estimating. Finally, we further illustrate the validity of our proposed model in identifying heterogeneous population and the accuracy and the applicability of the ADMM algorithm with MCP by simulation studies.
+
+## 2 Data description 
+I find a gene expression data sets for ovarian cancer(OV) patients from The Cancer Genome Atlas(TCGA). This dataset can be downloaded through the "RTCGA" package.
+
+```{R}
+source("http://bioconductor.org/biocLite.R")
+biocLite("RTCGA")
+biocLite("RTCGA.clinical")
+biocLite("RTCGA.rnaseq")
+biocLite("RTCGA.mRNA")
+biocLite("RTCGA.mutations")
+```
+
+```{R}
+library(RTCGA)
+library(RTCGA.clinical)
+library(RTCGA.rnaseq)
+library(RTCGA.mRNA)
+library(RTCGA.mutations)
+library(VIM)
+library(dplyr)
+library(tidyr)
+library(wakefield)
+library(Amelia)
+library(mice)
+library(ggpubr)
+
+expr = expressionsTCGA(OV.mRNA) 
+```
+
+First, we find that the dataset is equipped with 17814 genes expression levels for 561 cancers. 
+
+```{R}
+dim(expr)
+```
+
+```{R}
+head(expr)
+expr[1:5, (dim(expr)[2] - 2): dim(expr)[2]]
+```
+
+For convenience, I simplify the notation of the dataset.
+
+```{R}
+expr = expr %>% mutate(bcr_patient_barcode = 1 : 561) %>% 
+  mutate(bcr_patient_barcode = paste0('OV',bcr_patient_barcode))
+  
+head(expr)
+```
+
+Next, I explored whether there are missing data in the dataset or not. For the dataset is so numerical, I just plot two subsets of the dataset.
+
+```{R}
+missmap(expr[1 : 561, 2 : 100],
+        col = c("red", "lightyellow"), 
+        x.cex = 0.7, y.cex = 0.2, 
+        rank.order = F)
+missmap(expr[1 : 561, 101 : 200],
+        col = c("red", "lightyellow"), 
+        x.cex = 0.7, y.cex = 0.2, rank.order = F)
+```
+
+And indeed, it has some missing data. Thus the next step, I delect the missing data.
+
+```{R}
+expr_comp = na.omit(expr)
+(dime = dim(expr_comp))
+
+#expr_comp[1 : 5, dime[2]]
+#expr_comp[1 : 5, 1 : 5]
+expr_comp = expr_comp[, -c(1, dime[2])]
+expr_comp_num = apply(expr_comp, 2, as.numeric)
+dim(expr_comp_num)
+
+```
+
+Then just 17814 genes expression levels for 334 patients are used in the later analysis.
+
+Seiden MV (2012)[36] proposed that mutations in BRCA1 have a lifetime risk of developing ovarian cancer of 15每45%. And mutations in BRCA2 are less risky than those with BRCA1, with a lifetime risk of 10%. To verify that, I find another two unrelated datasets, one is Breast invasive carcinomaBreast invasive carcinoma(BRCA) and another is Lung squamous cell carcinoma(LUSC). The next plot shows that the LUSC datasets is mor far away from the OV. 
+
+```{R}
+expressionsTCGA(BRCA.rnaseq, OV.rnaseq, LUSC.rnaseq) %>%
+  dplyr::rename(cohort = dataset) %>%  
+  filter(substr(bcr_patient_barcode, 14, 15) == "01") = BRCA.OV.LUSC.rnaseq.cancer
+
+pcaTCGA(BRCA.OV.LUSC.rnaseq.cancer, "cohort") = pca_plot
+plot(pca_plot)
+
+```
+
+Therefore, I compared the BRCA1 and BRCA2 expression levels of OV with those of LUSC. The Boxplot shows that the BRCA1 expression level is more important index of ovarian cancer than BRCA2 to some extent. 
+
+```{R}
+expr_com = expressionsTCGA(OV.mRNA, LUSC.mRNA)
+expr_com$dataset = gsub(pattern = ".mRNA",
+                        replacement = "", expr_com$dataset)
+expr_com$bcr_patient_barcode = paste0(expr_com$dataset, 
+                                      c(1 : 561, 1 : 154))
+
+ggboxplot(expr_com, x = "dataset", y = c("BRCA1", "BRCA2"),
+          combine = T, ylab = "Expression",
+          color = "dataset", palette = "lacet")
+```
+
+Thus, I chosen the BRCA1 as index of the ovarian cancer and also the response variable. However, there are too many related genes, so I screened 10 kinds of most related genes of the BRCA1 as the explanatory variables.
+
+```{R}
+BRCA1 = as.matrix(expr_comp$BRCA1)
+corr = expr_comp_num %>% as.matrix %>% apply(2, function(x){cor(x, BRCA1)})
+corr_dec = corr %>% abs %>% sort(decreasing = T)
+corr_df = corr %>% as.data.frame %>% rownames %>% as.data.frame
+corr_df$corr = abs(corr)
+genes_rel = corr_df %>% filter(corr > corr_dec[10])
+colnames(genes_rel) = c("Index", "corr")
+genes_rel = filter(genes_rel, Index != "BRCA1")
+genes_rel_name = genes_rel[,1]
+
+genes_rel_name[1: 5]  
+```
+
+And then applied linear model to them.
+
+```{R}
+fit_df = select(expr_comp, genes_rel_name)
+lm_fit = lm(BRCA1~., data = fit_df)
+plot(density(residuals(lm_fit)), sub = "The kenel density of the residual", col = "red", lwd = 2)
+
+```
+
+From the kenel density plot of the residuals, we can see that there still not from one normal population. In other words, there still exist some important latent variables which affect the BRCA1.
+
+## 3 Plan for the project
+### 3.1 Model Selection
+In real life, patients with the same disease, for example, cancer patients, will have different clinical effects when they perform the same therapy, which manifests that they are from a heterogenous population. In order to improve the effectiveness of treatment, the United States put forward the concept of "accurate medicine" in 2011, which emphasizes the full use of personal genetic information to make medical decisions. In order to implement the "precise medical" policy, the heterogeneous group should be divided into multiple homogeneous subgroups, and then subgroup analysis should be done to carry out targeted treatment for each specific subgroup to improve the therapeutic effect. Shujie Ma, Huang Jian (2016) in [1], based on the subgroup analysis of Meta analysis in biostatistics, propose a new method to distinguish heterogeneous populations. In this paper,  they established a linear regression model with subject-specific intercepts. We apply concave penalty function to pairwise differences of the intercepts[1]. Then they developed a new ADMM algorithm to the problem. By this procedure, observations can be divided automatically.  However, in biomedical field, due to the high cost of sample data collection and a disease involving thousands of gene expression, it often results in the situation of $p \gg n$. In this case, the ordinary least square method doesn＊t work. Based on [1], we study the high dimensional problem, that is, when $p \gg n$, a linear model with subject-specified intercept is established. The intercepts and a number of parameters of independent variables are added to the penalty function term which also are concave penalties. Then we apply the ADMM algorithm proposed in [1] to our case. And we will verify that the coefficients can be estimated relatively accurately and observations can also be divided automatically by simulations and analyzing the TCGA-Ovary-cancer dataset. This is of standout significance to the realistic accurate medical treatment. The core of accurate medical treatment is to divide the heterogeneous population into homogeneous groups and apply specified medical measures to each of them to improve the accuracy of medical treatment. In the historical research, an important method a supervised clustering method. This method is to consider the heterogeneous population as coming from a mixture of subgroups and then establish a finite mixture model. Wei and Kosorok (2013) [2], Mc-Nicholas (2010) [3] proposed Gaussian mixture model. In addition, Muthen and Sharedden (1999) [4], Wong and Li (2001) [5], as well as the Muthen and Aspeahov (2009)[6] proposed the logistic-normal mixture model, and then Shen and He[7] improved the logistic-normal mixture model, bringing up a structured logistic-normal mixture model. On the other hand, Cai,Wong et al. (2011) [8] and Zhao, Cai et al. (2013) [9] using parametric method to construct a scoring system for cluster analysis. Foster, Taylor and Ruberg (2011) [10] put forward the method of "virtual twins" for the first time, and verified that the method is superior to the logical regression model. However, as a supervised clustering method, the proposed models assume that the sample distribution is known, which is difficult to satisfy in the practical research, especially for the mixture model method which should be put a priori on the number of mixture components. Therefore, the subject-specified intercepts linear model[1] will be used in this paper.
+
+From an intuitive view, if analyzing the whole patient with a intercept-fixed linear model
+$$Y_i=\mu+X_i^T\beta+\epsilon_i,i=1,\dots,n$$
+which is based on the assumption of latent factors being negligible. However, the latent factors play a crucial role in medical decision-making under many usual situations. Thus we apply the subject-specified intercepts linear model[1]
+$$Y_i=\mu_i+X_i^T\beta+\epsilon_i,i=1,\dots,n$$
+where $\beta=(\beta_1,\dots,\beta_p)^T$ is a $p-$dimension vector, $\mu=(\mu_1,\dots,\mu_n)^T$ is an $n-$dimension vector and $p\gg n$. 
+
+This model takes relating latent factors into consideration. Observation with same intercept are viewed as coming from a specific subgroup, and on the other hand, observations with different intercept are considered from different subgroups. Based on this subject-specified intercepts linear model, we can identify different subgroups from a hetergeneous population. In precision medicine, applying statistical tools to subgroup analysis, and futher to determine specific treatment to specific subgroup is of prospective importance.
+
+### 3.2 Computation
+#### 3.2.1 Selection of Penalty Function
+A key issue is the choice of penalty functions. According to different aspects, relevant literatures have explored various forms of the application of penalty functions in variable selection. Tibshirani (1996) [11]proposed lasso method to estimate paremeters in linear model. Since then, many scholars have studied following up. Osborne, Presnell and Turlach (2000a, 2000b) [12, 13], Efron, Hastie and Johnstone (2004) [14] proposed algorithms such as LARS to solve lasso problem. Although lasso has many good properties, the estimators are biased, which are not consistent. Thus, Fan and Li (2001)[15] first focused on the influence of the bias of estimation deduced by lasso, implementing SCAD penalty[16] and showing that the obtained estimator has the oracle property. Zhang (2010)[17] proposed MC+ including the MCP penalty and the PLUS algorithm. It also proved the unbiasedness of the estimator, further showing that in the high-dimensional case, MC+ does not need to satisfy the two necessary preconditions of lasso, and it is more likely to obtain high-precision estimation than the lasso penalty. The solutions obtained from the proposed concave penalty function are not globally optimal, but it solves the problem of biased estimators and high cost of subset selection generated by lasso method. Thus concave penalties possess several attracting properties. Later, Patrick Breheny and Huang Jian (2011)[18] verified that the non-convex penalty function MCP and SCAD have more extensive than lasso, and further proved that MCP has a better estimation property than SCAD. Thus this project will apply MCP[17] penalty to the parameter selection.
+
+#### 3.2.2 The Algorithm
+Based on the proposed model, the next step is to find an algorithm with less iterations and higher precision. Hui Zou and Runze Li (2008)[19] proposed the LLA algorithm, and proved convergence and other theories system for this new algorithm applying to a large class of concave penalty functions. Friedman, Jerome et al. (2007)[20] applied the coordinate descent method to the lasso problem. Later, Wu and Lange(2008)[21] proposed the coordinate descent method with convex penalty, especially appying the $L_1$ penalty function, the $L_2$ penalty function, and the penalty function  combined with $L_1$ and $L_2$ to generalized linear model, effectively solving the sparse problem and shortening the computation time. Subsequently, Based on the introduction of the principle of coordinate descent method, Friedman, Hastie and Tibshirani (2010)[22] extended its convergence property, and illustrates the application of the algorithm in the field of machine learning. Thus, it can be seen that the coordinate descent method has stronger applicability in fitting the model with lasso penalty function than LARS. However, due to the time consumption and support of hardware, some algorithms cannot be used to implement the parameter estimation under realistic conditions. In order to comprehensively solve such problems, this project will apply the ADMM algorithm introduced by Stephen Boyd (2010)[23]. The ADMM algorithm combines the decomposability of the dual ascending method[24] and the upper bound convergence of the multiplier method [25]. It is a general algorithm for a well-implemented distributed computing framework. Even though the ADMM algorithm has a slower convergence rate than the fast and   of high-precision algorithms, such as the Newton method [26] and the interior point method [27], the estimation of high-precision are not significant for the effect of prediction in the large-scale application. Thus relaxing the cessation condition to obtain a relatively precise solution is acceptable.
+
+## Reference
+
+[1]Ma, Shujie, and J. Huang. "A concave pairwise fusion approach to subgroup analysis." Journal of the American Statistical Association 75.9(2015):901-3.
+    [2]Wei, Susan, and M. R. Kosorok. "Latent Supervised Learning." Journal of the American Statistical Association 108.503(2013):957-970.
+    [3]Mcnicholas, Paul D. "Model-based classification using latent Gaussian mixture models." Journal of Statistical Planning & Inference 140.5(2010):1175-1181.
+    [4]Muth谷n, Bengt, and K. Shedden. "Finite Mixture Modeling with Mixture Outcomes Using the EM Algorithm." Biometrics 55.2(1999):463-469.
+    [5]Wong, C. S., and W. K. Li. "On a logistic mixture autoregressive model." Biometrika 88.3(2001):833-846.
+    [6]Muth谷n, Bengt, and T. Asparouhov. "Multilevel Regression Mixture Analysis." Journal of the Royal Statistical Society: Series A (Statistics in Society) 172.3(2009):639每657.
+    [7]Shen, Juan, and X. He. "Inference for Subgroup Analysis With a Structured Logistic-Normal Mixture Model." Journal of the American Statistical Association 110.509(2015):00-00.
+    [8]Cai, Tianxi, et al. "Analysis of randomized comparative clinical trial data for personalized treatment selections. " Biostatistics 12.12(2011):270-282.
+    [9]Zhao, Lihui, et al. "EFFECTIVELY SELECTING A TARGET POPULATION FOR A FUTURE COMPARATIVE STUDY." Journal of the American Statistical Association 108.502(2013):527-539.
+    [10]Foster, Jared C., J. M. G. Taylor, and S. J. Ruberg. "Subgroup identification from randomized clinical trial data." Statistics in Medicine 30.30(2011):2867-2880.
+    [11]Tibshirani, Robert. "Regression shrinkage and selection via the lasso: a retrospective." Journal of the Royal Statistical Society 58.3(1996):267-288.
+    [12]Osborne, M. R., B. Presnell, and B. A. Turlach. "A new approach to variable selection in least squares problems." Ima Journal of Numerical Analysis 20.3(2000):389-403(15).
+    [13]Osborne, Michael R., B. Presnell, and B. A. Turlach. "On the LASSO and Its Dual." Journal of Computational & Graphical Statistics 9.2(2000):319-337.
+    [14]Efron, Bradley, et al. "Least angle regression." Annals of Statistics 32.2(2004):407-451.
+    [15]Fan, Jianqing, and R. Li. "Variable Selection via Nonconcave Penalized Likelihood and its Oracle Properties." Journal of the American Statistical Association 96.456(2001):1348-1360.
+    [16]Fan, J. "Comments on wavelets in statistics: A review." Italian Jour Statist 6.2(1997):97-130.
+    [17]Zhang, Cun Hui. "Nearly unbiased variable selection under minimax concave penalty." Annals of Statistics 38.2(2010):894-942.
+    [18]Breheny, P, and J. Huang. "COORDINATE DESCENT ALGORITHMS FOR NONCONVEX PENALIZED REGRESSION, WITH APPLICATIONS TO BIOLOGICAL FEATURE SELECTION. " Annals of Applied Statistics 5.1(2011):232-253.
+    [19]Hui Zou, and Runze Li. "One-step sparse estimates in nonconcave penalized likelihood models." Annals of Statistics 36.4(2008):1509-1533.
+    [20]Friedman, Jerome, et al. "Pathwise coordinate optimization." Annals of Applied Statistics 1.2(2007):302-332.
+    [21]Lange, Kenneth. "Coordinate Descent Algorithms for Lasso Penalized Regression." Annals of Applied Statistics 2.1(2008):224-244.
+    [22]Friedman, J, T. Hastie, and R. Tibshirani. "Regularization Paths for Generalized Linear Models via Coordinate Descent. " Journal of Statistical Software 33.1(2010):1.
+    [23]Boyd, Stephen, et al. "Distributed Optimization and Statistical Learning via the Alternating Direction Method of Multipliers." Foundations & Trends?? in Machine Learning 3.3(2010):1-122.
+    [24]Wong, Richard T. "A dual ascent approach for steiner tree problems on a directed graph." Mathematical Programming 28.3(1984):271-287.
+    [25]Duration, When Time Slows Down Subjective. "The Method of Multipliers for Equality Constrained Problems - Constrained Optimization and Lagrange Multiplier Methods - Chapter 2." Constrained Optimization & Lagrange Multiplier Methods (1982):95每157.
+    [26]W. F. Tinney, C. E. Hart, "Power Flow Solution by Newton's Method", IEEE Trans. Power App. Syst., vol. PAS-86, pp. 1449-1460, November 1967.
+    [27]Mehrotra, Sanjay. "On the Implementation of a Primal-Dual Interior Point Method." American Journal of Digestive Diseases 2.4(1992):575-601.
+    [28]Akaike, Hirotogu. "Information Theory and an Extension of the Maximum Likelihood Principle." Inter.symp.on Information Theory 1(1992):610-624.
+    [29]Schwarz, Gideon. "Estimating the Dimension of a Model." Annals of Statistics 6.2(1978):p芍gs. 15-18.
+    [30]Wang, H., R. Li, and C. L. Tsai. "Tuning parameter selectors for the smoothly clipped absolute deviation method. " Biometrika 94.3(2007):553-568.
+    [31]Meinshausen, Nicolai, and P. B邦hlmann. "Stability selection." Journal of the Royal Statistical Society 72.4(2008):417-473.
+    [32]Allen, D. M. 1974. The Relationship Between Variable Selection and Data Augmentation and a Method for Prediction. Technometrics, 16: 125每127. ??
+    [33]Herzberg, G. and Tsukanov, S. 1986. A Note on Modifications of the Jackknife Criterion on Model Selection. Utilitas Mathematics, 29: 209每216.
+    [34]Jun Shao. "Linear Model Selection by Cross-validation." Journal of the American Statistical Association 88.422(1993):486-494.
+    [35]Wang, H., Li, B. and Leng, C. (2009). Shrinkage tuning parameter selection with a diverging number of parameters, Journal of Royal Statistical Society, Series B 71: 671每683.

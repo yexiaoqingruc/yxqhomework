@@ -46,7 +46,7 @@ library(Amelia)
 # Step 1: Conducting tuning parameters selection.
 #===============================================================
 
-setwd("../code")
+setwd("../code_asa")
 source("Lam_Ome_opt_BIC_para.R")
 lamome_opt = Lam_Ome_opt_BIC_para(x_emp, y_emp)
 lambda_opt = lamome_opt[1] %>% as.numeric
@@ -58,7 +58,7 @@ omega_opt = lamome_opt[2] %>% as.numeric
 # -ing the numbers of subgroup;
 #===============================================================
 
-setwd("../code")
+setwd("../code_asa")
 source("ST.R")
 source("K.R")
 source("ADMM.R")
@@ -76,7 +76,7 @@ eta = result[[4]] %>% as.numeric
 # -groups. 
 #===============================================================
 
-setwd("../code")
+setwd("../code_asa")
 source("group_members.R")
 grm = eta %>% group_member(n = length(y_emp))
 

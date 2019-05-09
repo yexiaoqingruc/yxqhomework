@@ -28,11 +28,11 @@ expr = expressionsTCGA(OV.mRNA)
 ### Description
 The data is published on database just as the above said, no register is avaliable. However, the raw assessing needs some time, thus, we provide a preprocessed in the data folder.
 
-To identify the homogeneous subgroups of the dataset, a penalized approach based on a regression model was proposed to deal with this heterogeneous group, in which heterogeneity is driven by unobserved latent factors and thus can be represented by subject-specified intercepts. Applying a concave penalty(MCP) to both the pairwise differences of the intercepts and cofficients, the procedure automatically divides observations into subgroups by the alternating direction method of the multiplier algorithm(ADMM).
+To identify the homogeneous subgroups of the dataset, a penalized approach based on a regression model was proposed to deal with this heterogeneous group, in which heterogeneity is driven by unobserved latent factors and thus can be represented by subject-specified intercepts. Applying a concave penalty(MCP) to both the pairwise differences of the intercepts and coefficients, the procedure automatically divides observations into subgroups by the alternating direction method of the multiplier algorithm(ADMM).
 
 ## Code
 ### Abstract
-All of tha data analysis for this report were done in R. The corresponding code is provided to take exploratory data analysis on the raw data, perform preprocessing steps and generate descriptive plots applied to the report(this three parts were represented on the final report); The other main code are also pubilshed to conduct tuning parameters selection through BIC or cross-validation; direct subject-interceps and cofficiens estimation by ADMM algorithm. Finally, some simulations are also shared.
+All of tha data analysis for this report were done in R. The corresponding code is provided to take exploratory data analysis on the raw data, perform preprocessing steps and generate descriptive plots applied to the report(this three parts were represented on the final report); The other main code are also pubilshed to conduct tuning parameters selection through BIC or cross-validation; direct subject-interceps and coefficients estimation by ADMM algorithm. Finally, some simulations are also shared.
 
 ### Description
 All of the R scripts used in the report are available in a public repository on GitHub [https://github.com/yexiaoqingruc/yxqhomework](url). The MIT license applies to all codes, and no permissions are required to access codes. And some main results are displayed on the [https://yexiaoqingruc.shinyapps.io/shiny/ ](url). (For the ADMM algorithm is time-consuming, sometimes the shiny website is out of time. A more feasible version may be assess in the short future.)
@@ -41,7 +41,7 @@ All of the R scripts used in the report are available in a public repository on 
 
 R version 3.5.1 was used for the analysis in this project. And the applications of shared codes are respectively: 
 
-- **ADMM.R** is a function of conducting the ADMM algorithm to estimate the subject-specified intercepts and the cofficients. 
+- **ADMM.R** is a function of conducting the ADMM algorithm to estimate the subject-specified intercepts and the coefficients. 
 
 - **ST.R** is a soft-thresholding function and applied to the **ADMM.R**.
 
@@ -55,10 +55,10 @@ R version 3.5.1 was used for the analysis in this project. And the applications 
 
 ## Instructions for Use
 ### Reproducible
-All data accessing, preprocessing and analysing are reproduced. But the data the figures displayed in the report should be found in the final report and proposal.
+All data accessing, preprocessing and analyzing are reproduced. But the data the figures displayed in the report should be found in the final report and proposal.
 
 The workflow information is contained in the **Reproducible_SA.R** script. The main general steps are:
 
 1. Conducting tuning parameters selection;
-2. Estimating the main parameters(subject-specified intercepts and cofficients) and dividing subgroups including obtaining the numbers of subgroup;
-3. Identifying the members of all subgroups and analysing the homogeneity in each subgroup and heterogeneity among subgroups.
+2. Estimating the main parameters(subject-specified intercepts and coefficients) and dividing subgroups including obtaining the numbers of subgroup;
+3. Identifying the members of all subgroups and analyzing the homogeneity in each subgroup and heterogeneity among subgroups.

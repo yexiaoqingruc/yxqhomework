@@ -1,4 +1,4 @@
-estimation_ADMM_mu = function(x, y, lambda, omega, gamma = 3, vartheta = 1){
+estimation_ADMM = function(x, y, lambda, omega, gamma = 3, vartheta = 1){
   library(ncvreg); library(dplyr)
   dx = ncol(x)
   n = nrow(x)
@@ -67,7 +67,7 @@ estimation_ADMM_mu = function(x, y, lambda, omega, gamma = 3, vartheta = 1){
   K = estimation_K(eta = eta_old, n)
   
   
-  return(mu_old)
+  return(list(K, mu_old, beta_old, eta_old, step))
   
 }
 

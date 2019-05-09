@@ -3,7 +3,7 @@
 
 ## Data
 ### Abstract
-The data set consists of mRNA-seq of 17814 gene expressions from 561 ovary patients. After omitting the NA datathe dataset remains 17812 gene expressions. Only 703 gene expressions are used for the analysis. The fitted value which obtained by projecting expression level of BRCA1 into the top two relevant gene-expression-levels(i.e., NBR2 and TOP2A) is used as the response variable. And then 700 gene expressions are regarded as explanatory variable ranging from 330th to 1030th. Thus, the data used is with $p\gg n$
+The data set consists of mRNA-seq of 17814 gene expressions from 561 ovary patients. After omitting the NA datathe dataset remains 17812 gene expressions. Only 703 gene expressions are used for the analysis. The fitted value which obtained by projecting expression level of BRCA1 into the top two relevant gene-expression-levels(i.e., NBR2 and TOP2A) is used as the response variable. And then 700 gene expressions are regarded as explanatory variable ranging from 330th to 1030th. Thus, the data used is with p>>n.
 
 ### Availability
 This Ovary data set is available is publicly available on the database called TCGA(The Cancer Genome Atlas) via the website [https://portal.gdc.cancer.gov/](url), or it also can be downloaded with TCGA R-package.

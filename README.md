@@ -47,7 +47,7 @@ R version 3.5.1 was used for the analysis in this project. And the applications 
 
 - **K.R** is a function of calculating the numbers of the subgroups automatically divided by the procedure. In this project, it is also applied to the **ADMM.R**.
 
-- **Lam_Ome_opt_BIC.R** is a function carried out to selecte tuning parameters with BIC rule. **Lam_Ome_opt_CV.R** is used in the same way by cross-validation. **Lam_Ome_opt_BIC_para.R** is a parallel-version of **Lam_Ome_opt_BIC.R**, and it requires 30 idle nuclears. Users can change the core-numbers according to the ability of the server.
+- **Lam_Ome_opt_BIC.R** is a function carried out to selecte tuning parameters with BIC rule. **Lam_Ome_opt_CV.R** is used in the same way by cross-validation. **Lam_Ome_opt_BIC_para.R** is a parallel-version of **Lam_Ome_opt_BIC.R**, and it requires 30 idle nuclears. Users can change the core-numbers according to the ability of the server. In this project, the parallel-version with BIC rule is used for the accuracy and efficiency.
 
 - **group_member.R** is a function to identify the subgoup members.
 
